@@ -1,0 +1,74 @@
+name: Sync Branch "Development" to Branch "main"
+
+on:
+  push:
+    branches:
+      - development
+    tags:
+      - "v*.*.*"
+
+jobs:
+  sync_to_main:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 
+          token: ${{ secrets.ACTION }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Get tag name
+        id: get_tag
+        run: |
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "RELEASE_BRANCH=release/${TAG_NAME}" >> $GITHUB_ENV       
+
+      - name: Sync branch "Development" to branch "main"
+        run: |
+          echo "Start: Syncing development to main for tag: ${{ env.TAG_NAME }}"
+          git fetch origin development
+          git fetch origin main
+          git checkout main
+          git pull origin main
+          git merge origin/development --no-ff
+          git push
+          echo "End: Main branch updated successfully"
+        env:
+          TAG_NAME: ${{ env.TAG_NAME }}
+        
+      - name: Create release branch
+        run: |
+          VERSION="${{ env.TAG_NAME }}"
+          BRANCH_NAME="release/${VERSION}"
+          echo "Creating release branch: $BRANCH_NAME"
+          git checkout -b ${{ env.RELEASE_BRANCH }} refs/tags/${{ env.TAG_NAME }}
+          git push origin $BRANCH_NAME
+          echo "Release branch created: $BRANCH_NAME"
+        env:
+          TAG_NAME: ${{ env.TAG_NAME }}
+          RELEASE_BRANCH: ${{ env.RELEASE_BRANCH }}
+
+      - name: Verify branches
+        run: |
+          echo "Verifying branches after sync:"
+          git branch -a
+          echo "Main branch is at:"
+          git log -1 main --oneline
+
+      - name: Dispatch release build action
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/${{ github.repository }}/actions/workflows/release-build.yml/dispatches \
+            -d '{"ref":"main", "inputs":{"tag":"${{ env.TAG_NAME }}", "branch":"release/${{ env.TAG_NAME }}"}}'
+        env:
+          TAG_NAME: ${{ env.TAG_NAME }}

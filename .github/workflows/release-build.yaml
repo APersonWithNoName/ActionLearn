@@ -1,0 +1,103 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag version'
+        required: true
+        type: string
+      branch:
+        description: 'Release branch name'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: Display release info
+        run: |
+          echo "Building release for tag: ${{ inputs.tag }}"
+          echo "Using branch: ${{ inputs.branch }}"
+          echo "Current directory contents:"
+          ls -la
+
+      - name: Setup build environment
+        run: |
+          echo "Setup build env."
+
+      - name: Build project
+        run: |
+          echo "Run build."
+          
+
+      - name: Run tests
+        run: |
+          echo "Run test."
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          git fetch --tags
+          PREV_TAG=$(git describe --tags --abbrev=0 ${{ inputs.tag }}^ 2>/dev/null || echo "")
+    
+          if [ -n "$PREV_TAG" ]; then
+            LOG_RANGE="$PREV_TAG..${{ inputs.tag }}"
+          else
+            LOG_RANGE="${{ inputs.tag }}"
+          fi
+          # 生成发布说明
+          cat > release_notes.md << EOF
+          ## Release ${{ inputs.tag }}
+    
+          ### 自动构建信息
+          - **版本**: ${{ inputs.tag }}
+          - **构建时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **触发分支**: ${{ inputs.branch }}
+    
+          ### 变更内容
+          $(git log --pretty=format:"- %s" $LOG_RANGE)
+    
+          EOF
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-${{ inputs.tag }}
+          path: |
+            dist/
+            !dist/**/*.log
+          retention-days: 7
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: Release ${{ inputs.tag }}
+          body_path: release_notes.md
+          files: |
+            dist/*
+            release_notes.md
+          draft: false
+          prerelease: ${{ contains(inputs.tag, '-beta') || contains(inputs.tag, '-alpha') || contains(inputs.tag, '-rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.ACTION_PAT }}
+
+      - name: Post-release notification
+        if: success()
+        run: |
+          echo "Release ${{ inputs.tag }} completed successfully!"
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/${{ inputs.tag }}"
+
+      - name: Handle build failure
+        if: failure()
+        run: |
+          echo "Release build failed for ${{ inputs.tag }}"
