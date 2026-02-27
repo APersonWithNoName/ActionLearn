@@ -1,0 +1,1 @@
+This is a message from branch development, if you can see it, sync-branch.yaml worked well. (I will push it in tag v1.0.6)
