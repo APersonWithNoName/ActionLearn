@@ -32,20 +32,22 @@ jobs:
 
       - name: Setup build environment
         run: |
-          echo "Setup build env."
+          mkdir dist
+          echo "Setup build env." >> dist/rel.txt
 
       - name: Build project
         run: |
-          echo "Run build."
+          echo "Run build." >> dist/rel.txt
           
 
       - name: Run tests
         run: |
-          echo "Run test."
+          echo "Run test." >> dist/rel.txt
 
       - name: Generate release notes
         id: release_notes
         run: |
+          echo "Run node." >> dist/rel.txt
           git fetch --tags
           PREV_TAG=$(git describe --tags --abbrev=0 ${{ inputs.tag }}^ 2>/dev/null || echo "")
     
