@@ -46,8 +46,8 @@ jobs:
           git fetch origin main
           git checkout main
           git pull origin main
-          git merge origin/development --no-ff
-          git push
+          git reset --hard origin/development
+          git push origin main --force
           echo "End: Main branch updated successfully"
         env:
           TAG_NAME: ${{ env.TAG_NAME }}
