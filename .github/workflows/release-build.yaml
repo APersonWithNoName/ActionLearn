@@ -5,16 +5,15 @@ on:
     branches:
       - main
     paths-ignore:
-      - '.github/**'  # 忽略 workflow 文件本身的修改
+      - '.github/**'
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    # 只在包含版本标签的推送时触发
     if: contains(github.event.head_commit.message, 'Release v')
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4  # 也建议升级 checkout
         with:
           fetch-depth: 0
           token: ${{ secrets.ACTION_PAT }}
@@ -25,7 +24,6 @@ jobs:
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           echo "Commit message: $COMMIT_MSG"
 
-          # 从 "Release v1.0.8: Merge development into main" 中提取版本
           VERSION=$(echo "$COMMIT_MSG" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
 
           if [ -n "$VERSION" ]; then
@@ -34,17 +32,17 @@ jobs:
             echo "✅ Found version: $VERSION"
           else
             echo "❌ No version found in commit message, skipping..."
-            exit 78  # 中性退出码，不会标记为失败
+            exit 78
           fi
 
       - name: Setup build environment
-        run: echo "Setup"
+        run: sh EnvSetup.sh
 
       - name: Build project
-        run: echo "Build"
+        run: sh Build.sh
 
       - name: Run tests
-        run: echo "Test"
+        run: sh RunTest.sh
 
       - name: Generate release notes
         run: |
@@ -59,11 +57,29 @@ jobs:
 
           cat > release_notes.md << EOF
           ## Release ${{ env.VERSION }}
+
+          ### 自动构建信息
+          - **版本**: ${{ env.VERSION }}
+          - **构建时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          - **触发分支**: main
+
+          ### 变更内容
           $(git log --pretty=format:"- %s" $LOG_RANGE)
           EOF
 
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4  # 升级到 v4
+        with:
+          name: build-${{ env.VERSION }}
+          path: |
+            dist/
+            !dist/**/*.log
+          retention-days: 7
+          compression-level: 6  # v4 支持的新参数
+          if-no-files-found: warn  # v4 支持的新参数
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2  # 也升级到 v2
         with:
           tag_name: ${{ env.VERSION }}
           name: Release ${{ env.VERSION }}
@@ -71,5 +87,7 @@ jobs:
           files: |
             dist/*
             release_notes.md
+          generate_release_notes: false
+          make_latest: true
         env:
-          GITHUB_TOKEN: ${{ secrets.ACTION_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
