@@ -79,30 +79,3 @@ jobs:
           # 验证认证状态
           echo "GitHub CLI auth status:"
           gh auth status || true
-
-      - name: Dispatch release build with gh
-        env:
-          GH_TOKEN: ${{ secrets.ACTION_PAT }}
-        run: |
-          echo "🚀 Dispatching release build for tag: ${{ env.TAG_NAME }}"
-
-          # 使用 gh 触发 workflow
-          gh workflow run "Release Build" \
-            --repo ${{ github.repository }} \
-            --ref main \
-            -f tag="${{ env.TAG_NAME }}" \
-            -f branch="${{ env.RELEASE_BRANCH }}"
-
-          # 检查结果
-          if [ $? -eq 0 ]; then
-            echo "✅ Dispatch successful"
-
-            # 等待一下并显示最近的运行
-            sleep 3
-            echo ""
-            echo "📊 Recent workflow runs:"
-            gh run list --workflow="Release Build" --repo ${{ github.repository }} --limit 3
-          else
-            echo "❌ Dispatch failed"
-            exit 1
-          fi
