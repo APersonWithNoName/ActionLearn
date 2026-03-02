@@ -4,13 +4,11 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '.github/**'
 
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, 'Release v')
+    if: contains(github.event.head_commit.message, 'Release v') && contains(github.event.head_commit.message, 'Merge development into main')
 
     steps:
       - name: Checkout code
