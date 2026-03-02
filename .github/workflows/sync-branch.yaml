@@ -40,21 +40,20 @@ jobs:
 
       - name: Sync development to main with merge commit
         run: |
-        echo "🔄 Syncing development to main for tag: ${{ env.TAG_NAME }}"
+          echo "🔄 Syncing development to main for tag: ${{ env.TAG_NAME }}"
 
-        git fetch origin development
-        git fetch origin main
+          git fetch origin development
+          git fetch origin main
 
-        git checkout main
-        git pull origin main
+          git checkout main
+          git pull origin main
 
-        # 使用 --no-ff 强制创建 merge commit
-        git merge --no-ff origin/development -m "Release ${{ env.TAG_NAME }}: Merge development into main"
+          # 使用 --no-ff 强制创建 merge commit
+          git merge --no-ff origin/development -m "Release ${{ env.TAG_NAME }}: Merge development into main"
 
-        git push origin main
+          git push origin main
 
-        echo "✅ Main branch updated with merge commit"
-
+          echo "✅ Main branch updated with merge commit"
 
       - name: Create release branch
         run: |
