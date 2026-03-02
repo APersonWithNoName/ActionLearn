@@ -55,6 +55,22 @@ jobs:
 
           echo "✅ Main branch updated with merge commit"
 
+      - name: Verify merge commit
+        run: |
+          echo "Verifying main branch after merge:"
+          git fetch origin main
+          git log -1 origin/main --pretty=format:"%h - %s"
+          echo ""
+    
+          # 检查是否包含 "Release v"
+          COMMIT_MSG=$(git log -1 origin/main --pretty=%B)
+          if [[ "$COMMIT_MSG" == *"Release v"* ]]; then
+            echo "✅ Commit message contains 'Release v'"
+          else
+            echo "❌ Commit message does NOT contain 'Release v'"
+            echo "Actual message: $COMMIT_MSG"
+          fi
+
       - name: Create release branch
         run: |
           BRANCH_NAME="${{ env.RELEASE_BRANCH }}"
