@@ -1,4 +1,4 @@
-name: Sync Branch "Development" to Branch "main"
+name: Sync development to main
 
 on:
   push:
@@ -7,24 +7,23 @@ on:
     tags:
       - "v*.*.*"
 
+# 设置必要的权限
+permissions:
+  actions: write
+  contents: write
+  checks: write
+  pull-requests: write
+
 jobs:
   sync_to_main:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
 
     steps:
-      - name: Debug secrets
-        run: |
-          echo "ACTION_PAT exists: ${{ secrets.ACTION_PAT != '' }}"
-          echo "GITHUB_TOKEN exists: ${{ secrets.GITHUB_TOKEN != '' }}"
-          echo "Repository: ${{ github.repository }}"
-          echo "Ref: ${{ github.ref }}"
-          echo "Event name: ${{ github.event_name }}"
-
       - name: Checkout Repo
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
           token: ${{ secrets.ACTION_PAT }}
 
       - name: Configure Git
@@ -32,36 +31,68 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
 
-      - name: Get tag
-        id: tag
+      - name: Get tag name
+        id: get_tag
         run: |
-          TAG=${GITHUB_REF#refs/tags/}
-          echo "name=$TAG" >> $GITHUB_OUTPUT
-          echo "branch=release/$TAG" >> $GITHUB_OUTPUT
+          TAG_NAME=${GITHUB_REF#refs/tags/}
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "RELEASE_BRANCH=release/${TAG_NAME}" >> $GITHUB_ENV
 
-      - name: Force sync to main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Force sync development to main
         run: |
-          # 强制同步 main 到 development
+          echo "🔄 Force syncing development to main for tag: ${{ env.TAG_NAME }}"
           git fetch origin development
-          git branch -f main development
-          git push origin main --force
+          git push origin --force origin/development:main
+          echo "✅ Main branch force updated"
 
       - name: Create release branch
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # 从标签创建 release 分支
-          git checkout -b ${{ steps.tag.outputs.branch }} ${{ steps.tag.outputs.name }}
-          git push origin ${{ steps.tag.outputs.branch }} --force
+          BRANCH_NAME="${{ env.RELEASE_BRANCH }}"
+          echo "🌿 Creating release branch: $BRANCH_NAME"
 
-      - name: Create GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 检查分支是否已存在
+          if git ls-remote --heads origin $BRANCH_NAME | grep -q $BRANCH_NAME; then
+            echo "⚠️ Branch $BRANCH_NAME already exists, updating..."
+            git push origin --force refs/tags/${{ env.TAG_NAME }}:refs/heads/$BRANCH_NAME
+          else
+            git checkout -b $BRANCH_NAME refs/tags/${{ env.TAG_NAME }}
+            git push origin $BRANCH_NAME
+          fi
+          echo "✅ Release branch created"
+
+      - name: Setup GitHub CLI
         run: |
-          # 创建 release（如果不存在）
-          gh release create ${{ steps.tag.outputs.name }} \
-            --title "Release ${{ steps.tag.outputs.name }}" \
-            --notes "Auto release from tag ${{ steps.tag.outputs.name }}\n- main synced to development\n- branch: ${{ steps.tag.outputs.branch }}" \
-            --target main || echo "Release already exists"
+          # GitHub CLI 在 ubuntu-latest 上默认已安装
+          # 但如果需要最新版本，可以更新
+          gh --version
+
+          # 验证认证状态
+          echo "GitHub CLI auth status:"
+          gh auth status || true
+
+      - name: Dispatch release build with gh
+        env:
+          GH_TOKEN: ${{ secrets.ACTION_PAT }}
+        run: |
+          echo "🚀 Dispatching release build for tag: ${{ env.TAG_NAME }}"
+
+          # 使用 gh 触发 workflow
+          gh workflow run "Release Build" \
+            --repo ${{ github.repository }} \
+            --ref main \
+            -f tag="${{ env.TAG_NAME }}" \
+            -f branch="${{ env.RELEASE_BRANCH }}"
+
+          # 检查结果
+          if [ $? -eq 0 ]; then
+            echo "✅ Dispatch successful"
+
+            # 等待一下并显示最近的运行
+            sleep 3
+            echo ""
+            echo "📊 Recent workflow runs:"
+            gh run list --workflow="Release Build" --repo ${{ github.repository }} --limit 3
+          else
+            echo "❌ Dispatch failed"
+            exit 1
+          fi
