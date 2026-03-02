@@ -72,4 +72,4 @@ jobs:
             dist/*
             release_notes.md
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.ACTION_PAT }}
