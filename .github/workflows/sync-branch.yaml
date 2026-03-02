@@ -38,12 +38,23 @@ jobs:
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
           echo "RELEASE_BRANCH=release/${TAG_NAME}" >> $GITHUB_ENV
 
-      - name: Force sync development to main
+      - name: Sync development to main with merge commit
         run: |
-          echo "🔄 Force syncing development to main for tag: ${{ env.TAG_NAME }}"
-          git fetch origin development
-          git push origin --force origin/development:main
-          echo "✅ Main branch force updated"
+        echo "🔄 Syncing development to main for tag: ${{ env.TAG_NAME }}"
+
+        git fetch origin development
+        git fetch origin main
+
+        git checkout main
+        git pull origin main
+
+        # 使用 --no-ff 强制创建 merge commit
+        git merge --no-ff origin/development -m "Release ${{ env.TAG_NAME }}: Merge development into main"
+
+        git push origin main
+
+        echo "✅ Main branch updated with merge commit"
+
 
       - name: Create release branch
         run: |
